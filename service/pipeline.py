@@ -1,19 +1,19 @@
 # -*- coding:utf-8 -*-
-import os
 import asyncio
 
 from silero_vad import load_silero_vad
 
-from models.text_processing import TextProcessingModule
-from models.audio_detection import AudioDetectionModule
-from models.audio_processing import AudioProcessingModule
-from models.data_transfmission import DataTransmissionModule
-from models.tts_module import TTSModule
+from service.models.text_processing import TextProcessingModule
+from service.models.audio_detection import AudioDetectionModule
+from service.models.audio_processing import AudioProcessingModule
+from service.models.data_transfmission import DataTransmissionModule
+from service.models.tts_module import TTSModule
+from service.models.DEVICE.vb_devices import VBAudioDevice
 from utils.logger import logger
 
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self) -> object:
         # 工作队列
         self.source_audio_queue = asyncio.Queue()
         self.detected_audio_queue = asyncio.Queue()
@@ -33,11 +33,16 @@ class Pipeline:
         self.text_processing = None
         self.tts_module = None
         self.data_transmission = None
+        self.audio_device = None
 
         self.tasks = []
 
     async def initialize_pipeline(self):
         self.model = load_silero_vad()
+        self.audio_device = VBAudioDevice(
+            source_audio_queue=self.source_audio_queue,
+            send_audio_queue=self.send_audio_queue
+        )
         # 数据传输模块
         self.data_transmission = DataTransmissionModule(
             send_audio_queue=self.send_audio_queue,
@@ -76,11 +81,13 @@ class Pipeline:
 
         # 启动任务
         self.tasks = [
+            asyncio.create_task(self.audio_device.read_frame()),
             asyncio.create_task(self.audio_detection.run()),
             asyncio.create_task(self.audio_processing.run()),
             asyncio.create_task(self.text_processing.run()),
             asyncio.create_task(self.tts_module.run()),
-            asyncio.create_task(self.data_transmission.run())
+            asyncio.create_task(self.data_transmission.run()),
+            asyncio.create_task(self.audio_device.write_back()),
         ]
 
     async def reset_pipeline(self):
@@ -137,6 +144,10 @@ class Pipeline:
             task.cancel()
 
 
-if __name__ == '__main__':
+async def main():
     pipeline = Pipeline()
-    pipeline.initialize_pipeline()
+    await pipeline.initialize_pipeline()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

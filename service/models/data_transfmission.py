@@ -34,14 +34,13 @@ class DataTransmissionModule:
     async def _send_audio(self):
         await self.log("开始传输音频")
 
-        audio_cache=[]
+        audio_cache = []
         try:
             while True:
-                audio_chunk=await self.send_audio_queue.get()
+                audio_chunk = await self.send_audio_queue.get()
 
                 if audio_chunk is not None:
                     # audio_cache.append(audio_chunk)
-
 
                     # todo 传输音频
                     pass
@@ -54,7 +53,6 @@ class DataTransmissionModule:
             await self.log("run is cancelled")
         except Exception as e:
             await self.log(f"Error: {e}")
-
 
     async def _send_text(self):
         await self.log("开始传输文本")

@@ -4,15 +4,9 @@ Update: 2024-07-22
 Version: 3.9.11.17.4
 """
 
-from . import uiautomation as uia
-from .languages import *
-from .utils import *
 from .elements import *
 from .errors import *
 from .color import *
-import time
-import os
-import re
 
 try:
     from typing import Literal
@@ -29,7 +23,7 @@ class WeChat(WeChatBase):
     def __init__(
             self,
             language: Literal['cn', 'cn_t', 'en'] = 'cn',
-            debug: bool = False
+            debug: bool = False,
     ) -> None:
         """微信UI自动化实例
 
@@ -376,7 +370,7 @@ class WeChat(WeChatBase):
             else:
                 editbox.SendKeys('{Enter}')
 
-    def receive_call(self,action):
+    def receive_call(self, pickup=False):
         """
             find controls: 微信 -- (1485,849,1905,1008)[420x159]
             find controls: 三里清风三里路 -- (1485,849,1905,1008)[420x159]
@@ -401,6 +395,9 @@ class WeChat(WeChatBase):
             if i.Name == '接受':
                 print(f'find target control: {i.Name} -- {i.BoundingRectangle}')
                 i.Click(simulateMove=True)
+                pickup = False
+
+        return pickup
 
     def send_voice_call(self, who):
         self.ChatWith(who)

@@ -1,7 +1,8 @@
 # -*- coding:utf-8 -*-
 import asyncio
 import pyaudio
-from abc import ABC, abstractmethod
+
+from service.models.DEVICE.base_device import BaseDevice
 
 
 def _show_devices() -> (int, str, int, int):
@@ -11,7 +12,7 @@ def _show_devices() -> (int, str, int, int):
         dev = p.get_device_info_by_index(i)
         devices.append((dev["index"], dev["name"], dev["maxInputChannels"], dev.get("defaultSampleRate")))
 
-    # print(devices)
+    print(devices)
     return devices
 
 
@@ -25,18 +26,10 @@ def _get_device_index(device_name, rate, channel=None) -> int:
         raise Exception(f"cannot find device: {device_name}, rate: {rate}, channel: {channel}")
 
 
-class BaseDevice(ABC):
-    @abstractmethod
-    async def read_frame(self, output_queue: asyncio.Queue):
-        pass
-
-    @abstractmethod
-    async def write_back(self, input_queue: asyncio.Queue):
-        pass
-
-
 class VBAudioDevice(BaseDevice):
-    """"""
+    """
+    VB-Audio Cable Device
+    """
     FORMATTER = pyaudio.paInt16
     CHUNK = 1024
     CHANNEL = 2
@@ -44,7 +37,12 @@ class VBAudioDevice(BaseDevice):
     VB_INPUT_DEVICE_NAME = "CABLE Input (VB-Audio Virtual Cable)"
     VB_OUTPUT_DEVICE_NAME = "CABLE Output (VB-Audio Virtual Cable)"
 
-    def __init__(self):
+    def __init__(self,
+                 source_audio_queue: asyncio.Queue,
+                 send_audio_queue: asyncio.Queue,
+                 ):
+        self.source_audio_queue = source_audio_queue
+        self.send_audio_queue = send_audio_queue
         self.p = pyaudio.PyAudio()
         self.intput_stream = self.p.open(
             format=self.FORMATTER,
@@ -60,21 +58,33 @@ class VBAudioDevice(BaseDevice):
             format=self.FORMATTER,
             channels=self.CHANNEL,
             rate=self.RATE,
-            input=True,
+            output=True,
             frames_per_buffer=self.CHUNK,
             input_device_index=_get_device_index(self.VB_INPUT_DEVICE_NAME, self.RATE)  # 音频数据输出到 VB 的输入设备
         )
 
-    async def read_frame(self, output_queue: asyncio.Queue):
+    async def read_frame(self):
         while True:
-            data = self.intput_stream.read(self.CHUNK)
-            await output_queue.put(data)
+            try:
+                data = self.intput_stream.read(self.CHUNK)
+                await self.send_audio_queue.put(data)
+            except asyncio.CancelledError:
+                await self.log("[vb_audio_device][read_frame] run is cancelled")
+            except Exception as e:
+                await self.log(f"[vb_audio_device][read_frame] Error: {e}")
 
-    async def write_back(self, input_queue: asyncio.Queue):
+    async def write_back(self):
         while True:
-            data = b''
-            data = await input_queue.get()
-            self.output_stream.write(data)
+            try:
+                data = await self.send_audio_queue.get()
+                self.output_stream.write(data)
+            except asyncio.CancelledError:
+                await self.log("[vb_audio_device][write_back] run is cancelled")
+            except Exception as e:
+                await self.log(f"[vb_audio_device][write_back] Error: {e}")
+
+    async def reset(self):
+        pass
 
     def close(self):
         self.output_stream.stop_stream()
@@ -82,3 +92,10 @@ class VBAudioDevice(BaseDevice):
         self.intput_stream.stop_stream()
         self.intput_stream.close()
         self.p.terminate()
+
+
+if __name__ == '__main__':
+    vb = VBAudioDevice(source_audio_queue=asyncio.Queue(), send_audio_queue=asyncio.Queue())
+    print('初始化 vb 设备')
+    # vb.read_frame()
+    pass

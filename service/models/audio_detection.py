@@ -110,7 +110,7 @@ class AudioDetectionModule:
 
         while True:
             try:
-                audio_data = self.source_audio_queue.get()
+                audio_data = await self.source_audio_queue.get()
             except asyncio.TimeoutError:
                 continue
 
