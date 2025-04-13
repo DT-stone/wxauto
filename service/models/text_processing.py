@@ -1,17 +1,27 @@
-# -*- coding:utf-8 -*-
 import asyncio
-import re
+import uuid
+from pathlib import Path
+from datetime import datetime
+import re  # 引入正则表达式模块
 from utils.logger import logger
 
 
 class TextProcessingModule:
-
-    def __init__(self,
-                 text_queue: asyncio.Queue,
-                 tts_queue: asyncio.Queue,
-                 send_text_queue: asyncio.Queue,
-                 ban_list=None
-                 ):
+    def __init__(
+            self,
+            text_queue: asyncio.Queue,
+            tts_queue: asyncio.Queue,
+            send_text_queue: asyncio.Queue,
+            ban_list=None  # 添加ban_list作为可选参数
+    ):
+        """
+        初始化TextProcessingModule。
+        :param text_queue: 从中消费文本的队列。
+        :param tts_queue: 处理后的文本放入的队列。
+        :param send_text_queue: 发送文本放入的队列。
+        :param termination_timeout: 等待新文本的超时时间（秒）。
+        :param ban_list: 要从文本中移除的字符或字符串列表。
+        """
         self.text_queue = text_queue
         self.tts_queue = tts_queue
         self.send_text_queue = send_text_queue
@@ -33,6 +43,16 @@ class TextProcessingModule:
         else:
             self.ban_pattern = None
 
+    async def periodic_logger(self):
+        """每隔5秒记录一次日志，表明 run 函数仍在运行。"""
+        try:
+            while True:
+                logger.info("text_processing run 函数正在正常运行。")
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            # 处理任务取消时的清理工作（如果需要）
+            pass
+
     async def wash(self, text):
         # 移除 HTML 标签或其他格式符号
         text = re.sub(r'<.*?>', '', text)  # 移除 HTML 标签
@@ -53,87 +73,109 @@ class TextProcessingModule:
 
         return text
 
-    async def log(self, message: str):
-        logger.info(message)
-
     async def run(self):
-        await self.log("开始处理文本")
+        """
+        持续处理来自text_queue的文本。
+        在开始一个新批次时使用初始终止字符，
+        然后切换到后续的终止字符，直到队列空闲。
+        处理文本中存在的终止字符时，进行适当的拆分。
+        """
+        # 启动定期日志记录协程
+        logger_task = asyncio.create_task(self.periodic_logger())
+        while True:
+            message_id = uuid.uuid4().hex
 
-        try:
-            while True:
+            try:
                 # text = await self.text_queue.get()
-                text = await asyncio.wait_for(self.text_queue.get(), timeout=1.5)
+                text = await asyncio.wait_for(self.text_queue.get(), timeout=2)
+                t0 = datetime.now()
+                logger.info(f'[text_processing] step 0 接收到文本:{t0}')
+                logger.info(f'接收到文本：{text}')
 
-                await self.log(f"received text before wash: {text}")
-                text = self.wash(text)
-                await self.log(f"handle text after wash: {text}")
+                text = await self.wash(text)
+
+                logger.info(f'清洗后文本:{text}')
 
                 self.current_text.append(text)
 
                 while True:
-                    merged_text = ' '.join(self.current_text)
+                    merged_text = ''.join(self.current_text)
 
-                    # 应用禁止词汇替换
+                    # 应用禁止词汇替换（在合并后进行）
                     if self.ban_pattern:
+                        original_merged_text = merged_text
                         merged_text = self.ban_pattern.sub('', merged_text)
-                    # 根据当前状态选择终止符
+
+                    # 根据当前状态选择终止字符
                     termination_chars = self.initial_termination_chars if self.use_initial_chars else self.subsequent_termination_chars
 
-                    # 找到任一终止符最早出现位置
-                    termination_pos = self.find_first_termination_char(merged_text, termination_chars)
+                    # 查找任一终止字符的最早出现位置
+                    termination_index = self.find_first_termination_char(merged_text, termination_chars)
 
-                    if termination_pos != -1:
-                        # 切分文本(包含终止符)
-                        split_point = termination_pos + 1
+                    print(f'文本：{merged_text},终止字符位置：{termination_index},')
+                    if termination_index != -1:
+                        # 在终止字符处分割文本
+                        split_point = termination_index + 1  # 包含终止字符
                         before_termination = merged_text[:split_point]
                         after_termination = merged_text[split_point:]
 
-                        # 保留剩余文本
-                        self.current_text = [after_termination]
+                        # 将终止前的部分添加到current_text
+                        self.current_text = [after_termination]  # 保留剩余部分
 
-                        # 处理 before termination
+                        # 处理before_termination
+                        t1 = datetime.now()
+                        logger.info(
+                            f'[text_processing] step 1 before send to tts：{t1},cost_time:{(t1 - t0).total_seconds()}')
                         await self.tts_queue.put(before_termination)
+                        t2 = datetime.now()
+                        logger.info(f'[text_processing] step 2 after send to tts：{t2},cost_time:{(t2 - t1).total_seconds()}')
 
-                        # 切换终止符
-                        if self.use_initial_chars:
-                            self.use_initial_chars = False
+                        # fixme
+                        await self.send_text_queue.put("resp")
+                        logger.info(f'成功切割一条数据：{before_termination}')
+
+                        # todo 是否需切换? 如果是一个批次的第一次终止，切换终止字符
+                        # if self.use_initial_chars:
+                        #     self.use_initial_chars = False
                     else:
-                        # 未找到终止符.等待更多文本
+                        # 未找到终止字符，等待更多文本
                         break
-        except asyncio.TimeoutError:
-            await self.log("[text_processing] 获取文本队列超时,等待处理剩余数据")
-            # 超时表示队列空闲
-            if self.current_text:
-                # 合并处理剩余文本
-                merged_text = ' '.join(self.current_text)
 
-            # 应用禁止词汇替换
-            if self.ban_pattern:
-                merged_text = self.ban_pattern.sub('', merged_text)
-            # 处理剩余文本
-            await self.tts_queue.put(merged_text)
+                self.text_queue.task_done()
 
-            self.current_text = []
-            # 重置终止符 处理下一批次
-            if self.use_initial_chars:
-                self.use_initial_chars = True
-        except asyncio.CancelledError:
-            await self.log("[text_processing] run is cancelled")
+            except asyncio.TimeoutError:
+                logger.info('队列超时，等待处理剩余数据。')
+                # 达到超时，表示队列空闲
+                if self.current_text:
+                    # 合并并处理剩余的文本
+                    merged_text = ''.join(self.current_text)
 
-    def find_first_termination_char(self, text: str, termination_chars: list):
+                    # 再次应用禁止词汇替换（以确保完整的禁止词汇被移除）
+                    if self.ban_pattern:
+                        original_merged_text = merged_text
+                        merged_text = self.ban_pattern.sub('', merged_text)
+
+                    await self.tts_queue.put(merged_text)
+                    # fixme
+                    await self.send_text_queue.put("resp")
+                    logger.info(f'处理剩余数据：{merged_text}')
+                    self.current_text = []
+
+                # 重置终止字符为初始状态以准备下一批次
+                if not self.use_initial_chars:
+                    self.use_initial_chars = True
+
+                logger.info('队列空闲，已重置处理状态。')
+
+    def find_first_termination_char(self, text: str, termination_chars: list) -> int:
         """
-         查找文本中最早出现的终止符
-        Args:
-            text (str): 待处理文本
-            termination_chars ( list): 终止符列表
-
-        Returns:    第一个命中终止符的位置,否则返回-1
-
+        查找文本中任一终止字符的第一个出现位置。
+        :param text: 要搜索的文本。
+        :param termination_chars: 终止字符列表。
+        :return: 第一个终止字符的索引，若未找到则返回-1。
         """
         indices = [text.find(char) for char in termination_chars if char in text]
         return min(indices) if indices else -1
 
     def reset(self):
         self.current_text = []
-
-

@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 
 current_dir = Path(__file__).resolve().parent
-log_dir = current_dir.parents[1]
+# log_dir = current_dir.parents[1]
+log_dir = current_dir
 log_file_path = log_dir / 'log.txt'
 
 logging.basicConfig(

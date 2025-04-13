@@ -2,7 +2,7 @@
 import asyncio
 import pyaudio
 
-from service.models.DEVICE.base_device import BaseDevice
+from device.base_device import BaseDevice
 
 
 def _show_devices() -> (int, str, int, int):
@@ -38,11 +38,11 @@ class VBAudioDevice(BaseDevice):
     VB_OUTPUT_DEVICE_NAME = "CABLE Output (VB-Audio Virtual Cable)"
 
     def __init__(self,
-                 source_audio_queue: asyncio.Queue,
-                 send_audio_queue: asyncio.Queue,
+                 # source_audio_queue: asyncio.Queue,
+                 # send_audio_queue: asyncio.Queue,
                  ):
-        self.source_audio_queue = source_audio_queue
-        self.send_audio_queue = send_audio_queue
+        # self.source_audio_queue = source_audio_queue
+        # self.send_audio_queue = send_audio_queue
         self.p = pyaudio.PyAudio()
         self.intput_stream = self.p.open(
             format=self.FORMATTER,
@@ -66,8 +66,10 @@ class VBAudioDevice(BaseDevice):
     async def read_frame(self):
         while True:
             try:
-                data = self.intput_stream.read(self.CHUNK)
-                await self.send_audio_queue.put(data)
+                data = asyncio.to_thread(self.intput_stream, self.CHUNK)
+                return data
+                # data = self.intput_stream.read(self.CHUNK)
+                # await self.send_audio_queue.put(data)
             except asyncio.CancelledError:
                 await self.log("[vb_audio_device][read_frame] run is cancelled")
             except Exception as e:
@@ -76,8 +78,9 @@ class VBAudioDevice(BaseDevice):
     async def write_back(self):
         while True:
             try:
-                data = await self.send_audio_queue.get()
-                self.output_stream.write(data)
+                # data = await self.send_audio_queue.get()
+                # self.output_stream.write(data)
+                pass
             except asyncio.CancelledError:
                 await self.log("[vb_audio_device][write_back] run is cancelled")
             except Exception as e:
