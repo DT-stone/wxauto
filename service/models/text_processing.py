@@ -53,6 +53,8 @@ class TextProcessingModule:
             # 处理任务取消时的清理工作（如果需要）
             pass
 
+        logger.info("初始化文本处理模块完成")
+
     async def wash(self, text):
         # 移除 HTML 标签或其他格式符号
         text = re.sub(r'<.*?>', '', text)  # 移除 HTML 标签

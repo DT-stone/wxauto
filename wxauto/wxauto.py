@@ -7,6 +7,7 @@ Version: 3.9.11.17.4
 from .elements import *
 from .errors import *
 from .color import *
+from utils.logger import logger
 
 try:
     from typing import Literal
@@ -370,7 +371,7 @@ class WeChat(WeChatBase):
             else:
                 editbox.SendKeys('{Enter}')
 
-    def receive_call(self, pickup=False):
+    async def receive_call(self):
         """
             find controls: 微信 -- (1485,849,1905,1008)[420x159]
             find controls: 三里清风三里路 -- (1485,849,1905,1008)[420x159]
@@ -383,21 +384,27 @@ class WeChat(WeChatBase):
         Returns:
 
         """
-        voice_call = uia.PaneControl(ClassName='ILinkVoipTrayWnd', searchDepth=1, name='微信')
-        controls = GetAllControlList(voice_call)
-        if not controls:
-            print('未找到语音通话控件')
-        income_name = controls[1].Name
+        while True:
+            # print(f'当前监控对象有:{self.listen}')
+            try:
+                voice_call = uia.PaneControl(ClassName='ILinkVoipTrayWnd', searchDepth=1, name='微信')
+                controls = GetAllControlList(voice_call)
+                if not controls:
+                    logger.info('未找到语音通话控件')
+                for who in self.listen:
 
-        print(f'find voice call: {income_name}')
-        for i in controls:
-            print(f'find controls: {i.Name} -- {i.BoundingRectangle}')
-            if i.Name == '接受':
-                print(f'find target control: {i.Name} -- {i.BoundingRectangle}')
-                i.Click(simulateMove=True)
-                pickup = False
+                    income_name = controls[1].Name
 
-        return pickup
+                    # print(f'find voice call: {income_name}')
+                    if who == income_name:
+                        for i in controls:
+                            logger.info(f'find voice call: {i.Name} -- {i.BoundingRectangle}')
+                            if i.Name == '接受':
+                                logger.info(f'find call from {income_name} and pick up...')
+                                i.Click(simulateMove=True)
+            except Exception as e:
+                if 'Timeout' not in str(e):
+                    logger.error(f'[receive_call] error: {e}')
 
     def send_voice_call(self, who):
         self.ChatWith(who)
@@ -595,7 +602,7 @@ class WeChat(WeChatBase):
         wxlog.debug(f'获取到 {len(AcceptableNewFriendsList)} 条新的好友申请')
         return AcceptableNewFriendsList
 
-    def AddListenChat(self, who, savepic=False, savefile=False, savevoice=False):
+    def AddListenChat(self, who, savepic=False, savefile=False, savevoice=False, voice_call=None):
         """添加监听对象
         
         Args:
@@ -604,6 +611,7 @@ class WeChat(WeChatBase):
             savefile (bool, optional): 是否自动保存聊天文件，只针对该聊天对象有效
             savevoice (bool, optional): 是否自动保存聊天语音，只针对该聊天对象有效
         """
+        print(f'开始监听 {who} 的聊天...')
         exists = uia.WindowControl(searchDepth=1, ClassName='ChatWnd', Name=who).Exists(maxSearchSeconds=0.1)
         if not exists:
             self.ChatWith(who)
@@ -612,6 +620,7 @@ class WeChat(WeChatBase):
         self.listen[who].savepic = savepic
         self.listen[who].savefile = savefile
         self.listen[who].savevoice = savevoice
+        self.listen[who].voice_call = voice_call
 
     def GetListenMessage(self, who=None):
         """获取监听对象的新消息

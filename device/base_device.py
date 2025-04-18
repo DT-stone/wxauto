@@ -10,7 +10,7 @@ class BaseDevice(ABC):
         pass
 
     @abstractmethod
-    async def write_back(self):
+    async def write_back(self, data):
         pass
 
     async def log(self, message: str):

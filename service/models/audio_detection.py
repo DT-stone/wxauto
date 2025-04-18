@@ -13,7 +13,6 @@ from collections import deque
 from utils.logger import logger
 
 
-
 class DetectionState(Enum):
     BEFORE_SPEECH = 1
     DURING_SPEECH = 2
@@ -137,13 +136,14 @@ class AudioDetectionModule:
 
     async def run(self):
         # 启动定期日志记录协程
-        logger_task = asyncio.create_task(self.periodic_logger())
         logger.info('开始运行 AudioDetectionModule')
-        await self.log(f'开始运行 AudioDetectionModule，初始状态: {self.state.name.lower()}')
         while True:
             try:
+                print('等待音频数据')
                 audio_data = await self.audio_queue.get()
+                print(f"[audio_detection] get audio data{len(audio_data)}")
             except asyncio.TimeoutError:
+                logger.info('没有音频数据，继续循环')
                 # 如果在一段时间内没有音频数据，继续循环
                 continue
 
@@ -172,10 +172,10 @@ class AudioDetectionModule:
                 continue
 
             if self.resampler:
-                logger.info("音频块采样率不匹配，开始重采样。")
+                # logger.info("音频块采样率不匹配，开始重采样。")
                 try:
                     audio_tensor = self.resampler(audio_tensor)
-                    logger.info("音频块重采样成功。")
+                    # logger.info("音频块重采样成功。")
                 except Exception as e:
                     await self.log(f"重采样时出错: {e}")
                     self.audio_queue.task_done()
@@ -194,7 +194,7 @@ class AudioDetectionModule:
                         self.buffer,
                         self.model,
                         sampling_rate=self.target_sample_rate,
-                        threshold=0.95  # 调整阈值以控制敏感度
+                        threshold=0.5  # 调整阈值以控制敏感度
                     )
                 except Exception as e:
                     await self.log(f"VAD处理时出错: {e}")
@@ -210,7 +210,7 @@ class AudioDetectionModule:
 
                         # Call reset_callback before processing
                         try:
-                            await self.reset_callback()
+                            # await self.reset_callback()
                             # fixme
                             # await self.send_text_queue.put('$clear$')
                             # await self.reset_callback()
@@ -230,7 +230,7 @@ class AudioDetectionModule:
                         self.last_speech_time = current_time
                         log_message = "你继续说，我在听..."
                         await self.log(log_message)
-                    elif self.state == DetectionState.DURING_SPEECH:
+                    elif self.state == DetectionState.BEFORE_SPEECH:
                         self.collected_audio = torch.cat((self.collected_audio, self.buffer.clone()))
                         self.last_speech_time = current_time
                         log_message = "持续说话中..."
@@ -242,7 +242,6 @@ class AudioDetectionModule:
                         self.collected_audio = torch.cat((self.collected_audio, self.buffer.clone()))
                         self.last_speech_time = current_time
                         log_message = "让我想想怎么回答..."
-                        self.log(log_message)
 
                         audio_bytes_io = io.BytesIO()
                         # 转换为正确的形状（需要是 (num_samples, num_channels)）

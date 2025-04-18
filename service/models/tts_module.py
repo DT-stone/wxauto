@@ -63,8 +63,7 @@ class TTSModule:
 
                 self.tts_queue.task_done()
         except asyncio.CancelledError:
-            logger.info("run 任务被取消")
-            raise
+            logger.info("tts_queue run 任务被取消")
         except Exception as e:
             logger.error(f'运行过程中发生错误: {e}')
         finally:
@@ -133,6 +132,8 @@ class TTSModule:
         """
         async with self.reset_lock:
             logger.info("开始重置 TTSModule")
+
+            await self.tts_engine.close()
 
             # 取消所有任务（除了 run 方法自身）
             tasks = list(self.tasks)

@@ -19,3 +19,4 @@ numpy~=1.26.0
 soundfile~=0.12.1
 typing~=3.10.0.0
 pygame
+aiofiles

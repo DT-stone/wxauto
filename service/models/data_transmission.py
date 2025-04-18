@@ -1,10 +1,15 @@
 import asyncio
 from utils.logger import logger
+from device.vb_devices import VBAudioDevice
+from device.base_device import BaseDevice
+from wxauto import WeChat
 
 
 class DataTransmissionModule:
-    def __init__(self, send_audio_queue: asyncio.Queue, send_text_queue: asyncio.Queue,
-                 history_audio_queue: asyncio.Queue, history_text_queue: asyncio.Queue):
+    def __init__(self, wx: WeChat, send_audio_queue: asyncio.Queue, send_text_queue: asyncio.Queue,
+                 history_audio_queue: asyncio.Queue, history_text_queue: asyncio.Queue, device: BaseDevice):
+        self.wx = wx
+        self.device: BaseDevice = device
         self.send_audio_queue = send_audio_queue
         self.send_text_queue = send_text_queue
         self.history_audio_queue = history_audio_queue
@@ -54,13 +59,9 @@ class DataTransmissionModule:
                     # 添加音频块到缓存
                     audio_cache.append(audio_chunk)
 
-                    async with self.websocket_lock:
-                        if self.websocket:
-                            try:
-                                await self.websocket.send_bytes(audio_chunk)
-                                logger.debug(f'成功发送音频，音频长度：{len(audio_chunk)}字节')
-                            except Exception as e:
-                                logger.error(f"WebSocket 发送音频错误: {e}")
+                    if self.device:
+                        await self.device.write_back(audio_chunk)
+
                 else:
                     if audio_cache:
                         merged_audio = b''.join(audio_cache)
@@ -94,14 +95,13 @@ class DataTransmissionModule:
 
                 if text_message is not None:
                     text_cache.append(text_message)
-
-                    async with self.websocket_lock:
-                        if self.websocket:
-                            try:
-                                await self.websocket.send_text(text_message)
-                                logger.debug(f'成功发送文本：{text_message}')
-                            except Exception as e:
-                                logger.error(f"WebSocket 发送文本错误: {e}")
+                    if self.wx:
+                        try:
+                            # fixme 指定 who
+                            await self.wx.SendMsg(text_message)
+                            logger.info(f"成功发送文本：{text_message}")
+                        except Exception as e:
+                            logger.error(f"wx 发送文本错误: {e}")
                 else:
                     if text_cache:
                         merged_text = ''.join(text_cache)
@@ -142,7 +142,7 @@ class DataTransmissionModule:
                 await self.text_task
             except asyncio.CancelledError:
                 logger.info("_send_text 任务已成功取消。")
-        
+
         # 清空发送队列
         await self._clear_queue(self.send_audio_queue, "send_audio_queue")
         await self._clear_queue(self.send_text_queue, "send_text_queue")

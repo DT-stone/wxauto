@@ -25,7 +25,7 @@ logging.basicConfig(
 class LingXiTTS(BaseTTS):
     def __init__(self):
         self.url = "http://8.142.222.140/tts"
-        self.session = aiohttp.ClientSession()
+        # self.session = aiohttp.ClientSession()
         self.chunk_size = 1024
 
     async def stream(self, text: str):
@@ -36,7 +36,7 @@ class LingXiTTS(BaseTTS):
         }
         t1 = datetime.now()
         logging.info(f'[LingXiTTS] step 1 stream text time:: {t1}')
-        async with self.session.get(self.url, params=param) as response:
+        async with aiohttp.ClientSession().get(self.url, params=param) as response:
             # 获取Content-Type
             content_type = response.headers.get('Content-Type')
 
@@ -61,6 +61,7 @@ class LingXiTTS(BaseTTS):
 
     async def close(self):
         pass
+        # await self.session.close()
 
     async def send_msg_http_post(self, url, text, type: str):
         start_time = time.perf_counter()
@@ -71,10 +72,10 @@ class LingXiTTS(BaseTTS):
         result = b''
 
         if type == 'post':
-            async with self.session.post(url, json=param) as response:
+            async with aiohttp.ClientSession().post(url, json=param) as response:
                 result = await response.read()  # 读取整个响应内容
         elif type == 'get':
-            async with self.session.get(url, params=param) as response:
+            async with aiohttp.ClientSession().get(url, params=param) as response:
                 # 获取Content-Type
                 content_type = response.headers.get('Content-Type')
                 print(f"Content-Type: {content_type}")

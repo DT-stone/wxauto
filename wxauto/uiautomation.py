@@ -6084,7 +6084,7 @@ class Control():
         if not self.Exists(maxSearchSeconds, searchIntervalSeconds, False if raiseException else DEBUG_EXIST_DISAPPEAR):
             if raiseException:
                 # Logger.ColorfullyLog('<Color=Red>Find Control Timeout: </Color>' + self.GetColorfulSearchPropertiesStr())
-                raise LookupError('Find Control Timeout: ' + self.GetSearchPropertiesStr())
+                raise LookupError('Find Control Timeout: ' + self.GetSearchPropertiesStr()+f', current time: {datetime.datetime.now()}')
             else:
                 return False
         return True
