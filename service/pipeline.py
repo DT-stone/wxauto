@@ -2,7 +2,7 @@
 import asyncio
 
 from silero_vad import load_silero_vad
-
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from device.base_device import BaseDevice
 from service.models.text_processing import TextProcessingModule
 from service.models.audio_detection import AudioDetectionModule
@@ -15,7 +15,7 @@ from wxauto import WeChat
 
 
 class Pipeline:
-    def __init__(self, device):
+    def __init__(self):
         # 定义各个队列
         self.raw_audio_queue = asyncio.Queue()  # 原始数据队列
         self.detected_audio_queue = asyncio.Queue()  # 音频数据检测队列
@@ -36,20 +36,27 @@ class Pipeline:
         self.text_processing = None
         self.tts_module = None
         self.data_transmission = None
-        self.device: BaseDevice = device
+        self.device: BaseDevice = None
 
         self.tasks = []
+        self.websocket = None
 
-    async def initialize_pipeline(self):
-        self.wx = WeChat()
+    async def initialize_pipeline(self, websocket: WebSocket, device: BaseDevice, wx: WeChat):
+        self.websocket = websocket
+        self.device = device
+        self.wx = wx
+        await self.wx.set_device(device)
+        await self.device.set_queue(self.raw_audio_queue)
+
         self.data_transmission = DataTransmissionModule(
-            wx=self.wx,
-            device=self.device,
             send_audio_queue=self.send_audio_queue,
             send_text_queue=self.send_text_queue,
             history_audio_queue=self.history_audio_queue,
             history_text_queue=self.history_text_queue,
         )
+
+        await self.data_transmission.set_app(wx)
+        await self.data_transmission.set_websocket(websocket)
 
         # 初始化各个模块并发送状态更新
         # await self.send_status("Initializing silero_vad model...")
@@ -87,9 +94,8 @@ class Pipeline:
 
         # 启动任务
         self.tasks = [
+            asyncio.create_task(self.device.collect_frames()),
             asyncio.create_task(self.audio_detection.run()),
-            # asyncio.create_task(self.device.read_frame()),
-            # asyncio.create_task(self.wx.receive_call()),
             asyncio.create_task(self.audio_processing.run()),
             asyncio.create_task(self.text_processing.run()),
             asyncio.create_task(self.tts_module.run()),
@@ -112,6 +118,8 @@ class Pipeline:
             await self.audio_processing.reset()
         if self.tts_module:
             await self.tts_module.reset()
+        if self.data_transmission:
+            await self.data_transmission.set_websocket(self.websocket)
 
     async def clear_queues(self):
         queues = [
@@ -151,7 +159,11 @@ class Pipeline:
 
 async def main():
     pipeline = Pipeline()
-    await pipeline.initialize_pipeline()
+    # await pipeline.initialize_pipeline(
+    #     websocket=WebSocket(),
+    #     device=VBAudioDevice(),
+    #     wx=WeChat(),
+    # )
 
 
 if __name__ == '__main__':

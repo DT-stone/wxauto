@@ -6,10 +6,8 @@ from wxauto import WeChat
 
 
 class DataTransmissionModule:
-    def __init__(self, wx: WeChat, send_audio_queue: asyncio.Queue, send_text_queue: asyncio.Queue,
-                 history_audio_queue: asyncio.Queue, history_text_queue: asyncio.Queue, device: BaseDevice):
-        self.wx = wx
-        self.device: BaseDevice = device
+    def __init__(self, send_audio_queue: asyncio.Queue, send_text_queue: asyncio.Queue,
+                 history_audio_queue: asyncio.Queue, history_text_queue: asyncio.Queue):
         self.send_audio_queue = send_audio_queue
         self.send_text_queue = send_text_queue
         self.history_audio_queue = history_audio_queue
@@ -19,14 +17,14 @@ class DataTransmissionModule:
         self.audio_task: asyncio.Task = None
         self.text_task: asyncio.Task = None
         self.logger_task: asyncio.Task = None
-
+        self.wx: WeChat = None
         self.websocket_lock = asyncio.Lock()
 
     async def periodic_logger(self):
         """每60秒记录一次日志，指示run函数仍在正常运行。"""
         try:
             while True:
-                logger.debug("data_transmission run 函数正在正常运行。")
+                logger.debug("[data_transmission] run 函数正在正常运行。")
                 await asyncio.sleep(60)
         except asyncio.CancelledError:
             logger.debug("periodic_logger 任务被取消。")
@@ -47,77 +45,83 @@ class DataTransmissionModule:
         )
 
     async def _send_audio(self):
-        logger.info("开始运行 _send_audio")
+        logger.info("[data_transmission]开始运行 _send_audio")
         audio_cache = []
 
         try:
             while True:
                 audio_chunk = await self.send_audio_queue.get()
-                logger.debug("从队列中获取到音频消息")
+                logger.debug("[data_transmission]从队列中获取到音频消息")
 
                 if audio_chunk is not None:
                     # 添加音频块到缓存
                     audio_cache.append(audio_chunk)
 
-                    if self.device:
-                        await self.device.write_back(audio_chunk)
-
+                    async with self.websocket_lock:
+                        if self.websocket:
+                            try:
+                                await self.websocket.send_bytes(audio_chunk)
+                                logger.debug(f'[data_transmission]成功发送音频，音频长度：{len(audio_chunk)}字节')
+                            except Exception as e:
+                                logger.error(f"[data_transmission]WebSocket 发送音频错误: {e}")
                 else:
                     if audio_cache:
                         merged_audio = b''.join(audio_cache)
 
                         try:
                             await self.history_audio_queue.put(merged_audio)
-                            logger.debug(f"将合并后的音频存储到 history_audio_queue，长度：{len(merged_audio)}字节")
+                            logger.debug(
+                                f"[data_transmission]将合并后的音频存储到 history_audio_queue，长度：{len(merged_audio)}字节")
                         except Exception as e:
-                            logger.error(f"存储合并后的音频到 history_audio_queue 错误: {e}")
+                            logger.error(f"[data_transmission]存储合并后的音频到 history_audio_queue 错误: {e}")
 
                         audio_cache.clear()
                     else:
-                        logger.debug("收到 None，但缓存为空，无需处理")
+                        logger.debug("[data_transmission]收到 None，但缓存为空，无需处理")
 
                 self.send_audio_queue.task_done()
 
         except asyncio.CancelledError:
-            logger.info("_send_audio 任务被取消")
+            logger.info("[data_transmission]_send_audio 任务被取消")
             pass
         except Exception as e:
-            logger.error(f"_send_audio 遇到异常: {e}")
+            logger.error(f"[data_transmission]_send_audio 遇到异常: {e}")
 
     async def _send_text(self):
-        logger.info("开始运行 _send_text")
+        logger.info("[data_transmission]开始运行 _send_text")
         text_cache = []
 
         try:
             while True:
                 text_message = await self.send_text_queue.get()
-                logger.debug(f"从队列中获取到文本消息: {text_message}")
+                logger.debug(f"[data_transmission]从队列中获取到文本消息: {text_message}")
 
                 if text_message is not None:
                     text_cache.append(text_message)
-                    if self.wx:
-                        try:
-                            # fixme 指定 who
-                            await self.wx.SendMsg(text_message)
-                            logger.info(f"成功发送文本：{text_message}")
-                        except Exception as e:
-                            logger.error(f"wx 发送文本错误: {e}")
+
+                    async with self.websocket_lock:
+                        if self.websocket:
+                            try:
+                                await self.websocket.send_text(text_message)
+                                logger.debug(f'[data_transmission]成功发送文本：{text_message}')
+                            except Exception as e:
+                                logger.error(f"[data_transmission]WebSocket 发送文本错误: {e}")
                 else:
                     if text_cache:
                         merged_text = ''.join(text_cache)
                         await self.history_text_queue.put(merged_text)
-                        logger.debug(f"已将合并后的文本存储到 history_text_queue: {merged_text}")
+                        logger.debug(f"[data_transmission]已将合并后的文本存储到 history_text_queue: {merged_text}")
                         text_cache.clear()
                     else:
-                        logger.debug("缓存为空，无需合并和存储。")
+                        logger.debug("[data_transmission]缓存为空，无需合并和存储。")
 
                 self.send_text_queue.task_done()
 
         except asyncio.CancelledError:
-            logger.info("_send_text 任务被取消")
+            logger.info("[data_transmission]_send_text 任务被取消")
             pass
         except Exception as e:
-            logger.error(f"_send_text 遇到异常: {e}")
+            logger.error(f"[data_transmission]_send_text 遇到异常: {e}")
 
     async def set_websocket(self, websocket):
         """
@@ -133,15 +137,15 @@ class DataTransmissionModule:
             try:
                 await self.audio_task
             except asyncio.CancelledError:
-                logger.info("_send_audio 任务已成功取消。")
+                logger.info("[data_transmission]_send_audio 任务已成功取消。")
 
         if self.text_task and not self.text_task.done():
-            logger.info("正在取消 _send_text 任务。")
+            logger.info("[data_transmission]正在取消 _send_text 任务。")
             self.text_task.cancel()
             try:
                 await self.text_task
             except asyncio.CancelledError:
-                logger.info("_send_text 任务已成功取消。")
+                logger.info("[data_transmission]_send_text 任务已成功取消。")
 
         # 清空发送队列
         await self._clear_queue(self.send_audio_queue, "send_audio_queue")
@@ -150,7 +154,7 @@ class DataTransmissionModule:
         # 重新启动发送任务
         self.audio_task = asyncio.create_task(self._send_audio())
         self.text_task = asyncio.create_task(self._send_text())
-        logger.info("已重新启动 _send_audio 和 _send_text 任务。")
+        logger.info("[data_transmission]已重新启动 _send_audio 和 _send_text 任务。")
 
     async def _clear_queue(self, queue: asyncio.Queue, queue_name: str):
         """清空指定的队列。"""
@@ -158,6 +162,9 @@ class DataTransmissionModule:
             while not queue.empty():
                 removed = queue.get_nowait()
                 queue.task_done()
-            logger.info(f"{queue_name} 已被清空。")
+            logger.info(f"[data_transmission] {queue_name} 已被清空。")
         except Exception as e:
-            logger.error(f"清空 {queue_name} 时遇到错误: {e}")
+            logger.error(f"[data_transmission] 清空 {queue_name} 时遇到错误: {e}")
+
+    async def set_app(self, wx):
+        self.wx = wx

@@ -3,11 +3,15 @@ Author: Cluic
 Update: 2024-07-22
 Version: 3.9.11.17.4
 """
+import asyncio
+import threading
+from queue import Queue
 
 from .elements import *
 from .errors import *
 from .color import *
 from utils.logger import logger
+from device.base_device import BaseDevice
 
 try:
     from typing import Literal
@@ -20,6 +24,9 @@ class WeChat(WeChatBase):
     lastmsgid: str = None
     listen: dict = dict()
     SessionItemList: list = []
+    lock = threading.Lock()
+    is_callee = False
+    oncall_task = {}
 
     def __init__(
             self,
@@ -31,6 +38,7 @@ class WeChat(WeChatBase):
         Args:
             language (str, optional): 微信客户端语言版本, 可选: cn简体中文  cn_t繁体中文  en英文, 默认cn, 即简体中文
         """
+        self.device: BaseDevice = None
         self.UiaAPI: uia.WindowControl = uia.WindowControl(ClassName='WeChatMainWndForPC', searchDepth=1)
         set_debug(debug)
         self.language = language
@@ -371,38 +379,77 @@ class WeChat(WeChatBase):
             else:
                 editbox.SendKeys('{Enter}')
 
-    async def receive_call(self):
-        """
-            find controls: 微信 -- (1485,849,1905,1008)[420x159]
-            find controls: 三里清风三里路 -- (1485,849,1905,1008)[420x159]
-            find controls: 三里清风三里路邀请你语音通话 -- (1503,861,1887,924)[384x63]
-            find controls: 挂断 -- (1779,942,1824,987)[45x45]
-            find controls: 接受 -- (1842,942,1887,987)[45x45]
-        Args:
-            action:
+    # async def receive_call(self):
+    # while True:
+    #     # print(f'当前监控对象有:{self.listen}')
+    #     try:
+    #
+    #         for who in self.listen:
+    #
+    #             voice_call = uia.PaneControl(ClassName='ILinkVoipTrayWnd', searchDepth=1, name=who)
+    #             controls = GetAllControlList(voice_call)
+    #             income_name = controls[1].Name
+    #             # todo 找不到控件会超时, 优化将  listen中的所有对象都监听. 如果 queue 有值 则其他对象不能接听 (是否已经要queue?)
+    #
+    #             # if not controls:
+    #             #     logger.info('未找到语音通话控件')
+    #             for i in controls:
+    #                 logger.info(f'find voice call: {i.Name} -- {i.BoundingRectangle}')
+    #                 if i.Name == '接受':
+    #                     logger.info(f'find call from {income_name} and pick up...')
+    #                     i.Click(simulateMove=True)
+    #                     self.device.allow_read_frame()
+    #                     break
+    #             # 监听是否已挂断,找不到控件就是挂断状态
+    #
+    #             if income_name is not None:
+    #                 print(f'挂断了 {income_name}')
+    #
+    #             # income_name = controls[1].Name
+    #             # print(f'find voice call: {income_name}')
+    #             # if who == income_name:
+    #             # for i in controls:
+    #             #     logger.info(f'find voice call: {i.Name} -- {i.BoundingRectangle}')
+    #             #     if i.Name == '接受':
+    #             #         logger.info(f'find call from {income_name} and pick up...')
+    #             #         i.Click(simulateMove=True)
+    #             #         self.device.allow_read_frame()
+    #
+    #
+    #     except Exception as e:
+    #         error = str(e)
+    #         if 'ILinkVoipTrayWnd' in error or 'Timeout' in error:
+    #             print(f'已挂断 {who}')
+    #         # print(f'[receive_call] error: {e}')
+    #         # if 'Timeout' not in str(e):
+    #         #     logger.error(f'[receive_call] error: {e}')
 
-        Returns:
-
-        """
+    async def listen_call(self, who):
         while True:
-            # print(f'当前监控对象有:{self.listen}')
             try:
-                voice_call = uia.PaneControl(ClassName='ILinkVoipTrayWnd', searchDepth=1, name='微信')
+                voice_call = uia.PaneControl(ClassName='ILinkVoipTrayWnd', searchDepth=1, name=who)
                 controls = GetAllControlList(voice_call)
-                if not controls:
-                    logger.info('未找到语音通话控件')
-                for who in self.listen:
-
-                    income_name = controls[1].Name
-
-                    # print(f'find voice call: {income_name}')
-                    if who == income_name:
-                        for i in controls:
-                            logger.info(f'find voice call: {i.Name} -- {i.BoundingRectangle}')
-                            if i.Name == '接受':
-                                logger.info(f'find call from {income_name} and pick up...')
-                                i.Click(simulateMove=True)
+                income_name = controls[1].Name
+                #  找不到控件会超时,
+                with self.lock:
+                    self.is_callee = True
+                    # 开启设备
+                    device_status = self.device.toggle_device()
+                logger.info(f'find voice call: {income_name},device status:{device_status}')
+                for i in controls:
+                    logger.info(f'find voice call: {i.Name} -- {i.BoundingRectangle}')
+                    if i.Name == '接受':
+                        i.Click(simulateMove=True)
+                        break
             except Exception as e:
+                msg = str(e)
+                if self.is_callee and 'Timeout' in msg and 'ILinkVoipTrayWnd' in msg and who in msg:
+                    print(f'已挂断 {who} 的通话')
+                    with self.lock:
+                        # 关闭读取设备
+                        device_status = self.device.toggle_device()
+                        self.is_callee = False
+                    logger.info(f'已挂断 {who} 的通话,device status:{device_status}')
                 if 'Timeout' not in str(e):
                     logger.error(f'[receive_call] error: {e}')
 
@@ -602,7 +649,7 @@ class WeChat(WeChatBase):
         wxlog.debug(f'获取到 {len(AcceptableNewFriendsList)} 条新的好友申请')
         return AcceptableNewFriendsList
 
-    def AddListenChat(self, who, savepic=False, savefile=False, savevoice=False, voice_call=None):
+    async def AddListenChat(self, who, savepic=False, savefile=False, savevoice=False, voice_call=False):
         """添加监听对象
         
         Args:
@@ -611,7 +658,12 @@ class WeChat(WeChatBase):
             savefile (bool, optional): 是否自动保存聊天文件，只针对该聊天对象有效
             savevoice (bool, optional): 是否自动保存聊天语音，只针对该聊天对象有效
         """
-        print(f'开始监听 {who} 的聊天...')
+        if who in self.listen:
+            logger.info(f'监听对象 {who} 已存在')
+            return
+        logger.info(f'新增监听对象: {who} .')
+        if voice_call:
+            self.oncall_task[who] = asyncio.create_task(self.listen_call(who))
         exists = uia.WindowControl(searchDepth=1, ClassName='ChatWnd', Name=who).Exists(maxSearchSeconds=0.1)
         if not exists:
             self.ChatWith(who)
@@ -727,8 +779,12 @@ class WeChat(WeChatBase):
 
     def RemoveListenChat(self, who):
         """移除监听对象"""
+        # todo 移除异步任务中的监听
         if who in self.listen:
+            self.oncall_task[who].cancel()
+            del self.oncall_task[who]
             del self.listen[who]
+            logger.info(f'已移除监听对象：{who}')
         else:
             Warnings.lightred(f'未找到监听对象：{who}', stacklevel=2)
 
@@ -788,6 +844,10 @@ class WeChat(WeChatBase):
 
             NewFriendsWnd.ButtonControl(Name='确定').Click(simulateMove=False)
         return True
+
+    async def set_device(self, device):
+        self.device = device
+
 
 
 class WeChatFiles:

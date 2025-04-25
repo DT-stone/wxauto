@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPTo</title>
+    <!-- 引入外部CSS文件 -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+    <div class="left-panel">
+        <div class="log-box-title">运行日志</div>
+        <div id="logBox"></div>
+    </div>
+    <div class="right-panel">
+        <div class="room-tag">My Assistant</div>
+        <div id="chatBox">
+            <div id="messageBox"></div>
+
+        </div>
+
+        <!-- 底部输入栏 -->
+        <div class="bottom-panel">
+            <button id="startButton">开始语音通话</button>
+            <button id="stopButton" disabled>结束语音通话</button>
+            <textarea id="messageInput" placeholder="输入消息..."></textarea>
+            <button id="sendBtn">发送</button>
+        </div>
+    </div>
+</div>
+<div class="audio-container">
+    <!--        <div id="recordingsBox" class="recordingsBox">-->
+    <!--            <h2>麦克风采样音频</h2>-->
+    <!--            &lt;!&ndash; 录制的音频将显示在这里 &ndash;&gt;-->
+    <!--            <button class="play-button" id="playRecordingsButton" disabled>播放所有录音</button>-->
+    <!--        </div>-->
+    <!--        <div id="backendRecordingsBox" class="backendRecordingsBox">-->
+    <!--            <h2>LLM音频回复</h2>-->
+    <!--            &lt;!&ndash; 后端返回的音频将显示在这里 &ndash;&gt;-->
+    <!--            <button class="play-button" id="playBackendRecordingsButton" disabled>播放所有回复音频</button>-->
+    <!--        </div>-->
+</div>
+
+<!-- 引入外部JavaScript文件 -->
+<script src="/static/script.js"></script>
+</body>
+</html>

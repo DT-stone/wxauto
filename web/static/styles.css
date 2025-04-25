@@ -1,0 +1,408 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column; /* 垂直排列 */
+    align-items: center;
+    justify-content: flex-start;
+    /*min-height: 100vh;*/
+    height: 100vh;
+    background-color: #f0f0f0;
+    margin: 10px; /* 增加底部间距 */
+    padding: 10px; /* 增加内边距 */
+    /*box-sizing: border-box;*/
+    overflow: hidden;
+}
+
+
+.container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: row; /* 水平/垂直排列左右面板 */
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    /*margin-left: 0;*/
+    /*margin-right: 0;*/
+    margin: 1px; /* 容器下方增加间距 */
+}
+
+.left-panel, .right-panel {
+    max-width: 80%;
+    max-height: 90%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.left-panel {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #e4e1e1;
+    /*margin-left: 1;*/
+    justify-content: center; /* 水平居中 */
+    align-items: center; /* 垂直居中 */
+    background-color: #f0f0f0;
+}
+
+.log-box-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    /*margin-bottom: 10px;*/
+    height: 30px;
+    background-color: #a6d5ae;
+    border-top-left-radius: 1px;
+    border-top-right-radius: 1px;
+    /*border-bottom: 0px;*/
+    /*box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);*/
+}
+
+#logBox {
+    width: 100%;
+    height: 100%;
+    /*max-height: 90%;*/
+    overflow-y: auto;
+    background-color: #fff;
+    /*padding: 1px;*/ /*边距*/
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    /*border-top: 1px solid #6e6041;*/
+    /*box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);*/
+    white-space: pre-wrap;
+}
+
+.right-panel {
+    flex: 7; /* 聊天区域大小 */
+    max-width: 80%;
+    background-color: #e0e0e0;
+    border-left: 1px;
+}
+
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+button {
+    font-size: 16px;
+    padding: 10px 20px;
+    margin: 5px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background-color: #007BFF;
+    color: white;
+    transition: background-color 0.3s;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+button:hover:enabled {
+    background-color: #0056b3;
+}
+
+
+.system-message {
+    font-size: 15px;
+    font-style: normal;
+    background-color: #bef1a1;
+    width: fit-content;
+    padding: 10px;
+    border-radius: 5px;
+    /* 仅对父容器增加间距 */
+    margin: 10px 0; /* 仅上下留空 */
+    display: inline-block;
+}
+
+.room-tag {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    /*margin-bottom: 10px;*/
+    height: 50px;
+    background-color: #b0a6d5;
+    border-top-left-radius: 1px;
+    border-top-right-radius: 1px;
+}
+
+
+#chatBox {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    margin-left: 0;
+    margin-bottom: 0;
+    white-space: pre-wrap;
+    overflow-y: auto; /* 启用垂直滚动 */
+    padding-top: 10px; /* 增加上内边距来保持顶部距离 */
+}
+
+#messageBox {
+    width: 100%;
+    height: 100%; /* 调整高度，给输入框留空间 */
+    /*min-height: 70%;*/
+    overflow-y: auto;
+    background-color: #fff;
+    padding: 0;
+    /*border-radius: 5px;*/
+    /*box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);*/
+    white-space: pre-wrap;
+    /*border-bottom: #007BFF solid 1px;*/
+    /*margin-right: 1px;*/
+}
+
+/* 底部按钮栏 */
+.bottom-panel {
+    display: flex;
+    flex-direction: row; /* 水平排列 */
+    align-items: center;
+    background-color: #fff;
+    justify-content: flex-start; /* 按钮靠左 */
+    width: 100%;
+    height: 20%;
+    /*border-top: #6e6041 solid 1px;*/
+    margin-top: 0;
+    padding: 5px;
+}
+
+/* 按钮样式 */
+.bottom-panel button {
+    margin-right: 10px; /* 按钮之间增加间距 */
+    padding: 8px 12px;
+    border: none;
+    border-bottom-right-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+}
+
+#messageInput {
+    flex: 1; /* 让输入框自适应宽度 */
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline: none;
+    transition: border 0.3s; /* */
+    width: 100%;
+    min-height: 40px;
+    max-height: 160px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    /*resize: none; */
+    margin-right: 10px;
+}
+
+#messageInput :focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+/* assistant 消息样式 */
+.assistant-message {
+    align-self: flex-start; /* 左对齐 */
+    background-color: #f1f1f1;
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 80%;
+}
+
+/* 用户消息样式 */
+.user-message {
+    align-self: flex-end; /* 右对齐 */
+    background-color: #dcf8c6;
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 80%;
+}
+
+
+/* 新增音频展示容器 */
+.audio-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    max-width: 800px;
+    gap: 20px;
+}
+
+.recordingsBox, .backendRecordingsBox {
+    flex: 1;
+    height: 300px; /* 初始高度设为 300px */
+    overflow-y: auto;
+    background-color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    position: relative; /* 为播放按钮定位提供基础 */
+}
+
+.recordingsBox {
+    /* 左侧录音展示框 */
+}
+
+.backendRecordingsBox {
+    /* 右侧后端音频展示框 */
+}
+
+audio {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+div.audio-item {
+    max-width: 500px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+/* 播放按钮样式 */
+.play-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    font-size: 14px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.play-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+
+/*================ message box ==================*/
+/* 主容器，使用 flexbox 来排列子元素 */
+.message_container {
+    display: flex;
+    width: 100%; /* 确保主容器占据整个宽度 */
+    background-color: #fff;
+}
+
+/*================ bot ======================*/
+/* 头像容器，固定宽度 40px */
+.head_portrait_bot {
+    order: 1;
+    width: 40px;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 头像图片样式 */
+.head_portrait_bot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 确保图片填满容器 */
+}
+
+
+/* 消息内容容器，占据剩余空间 */
+.message_content_bot {
+    order: 2;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column; /* 子元素上下排列 */
+}
+
+/* 用户信息容器，占据顶部空间 */
+.role_info_bot {
+    padding: 8px;
+    /*background-color: #f0f0f0; !* 可以自定义背景色 *!*/
+    /*border-bottom: 1px solid #ddd;*/
+}
+
+/* 消息数据容器，占据剩余空间 */
+.message_bot {
+    flex-grow: 1;
+    padding: 8px;
+    width: fit-content;
+    max-width: 80%;
+    border-radius: 5px;
+    /*background-color: #fff; !* 可以自定义背景色 *!*/
+    background: #ffffff;
+    color: black;
+    overflow-y: auto; /* 如果内容多，允许滚动 */
+    margin-left: 10px;
+}
+
+
+/*================ user ======================*/
+/* 头像容器，固定宽度 40px */
+.head_portrait_user {
+    order: 2;
+    width: 40px;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 头像图片样式 */
+.head_portrait_user img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 确保图片填满容器 */
+}
+
+/* 消息内容容器，占据剩余空间 */
+.message_content_user {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column; /* 子元素上下排列 */
+}
+
+/* 用户信息容器，占据顶部空间 */
+.role_info_user {
+    padding: 8px;
+    display: flex;
+    justify-content: flex-end; /* 水平右对齐 */
+    /*align-items: center; !* 垂直居中对齐 *!*/
+}
+
+.role_info_user span {
+    text-align: right; /* 确保span的内容右对齐 */
+}
+
+/* 消息数据容器，占据剩余空间 */
+.message_user {
+    max-width: 80%; /* 限制最大宽度，防止消息过长 */
+    width: fit-content; /* 让宽度根据内容自适应 */
+    padding: 8px 12px; /* 增加一些内边距，使内容更美观 */
+    border-radius: 5px;
+    background: #007bff;
+    color: white;
+    word-break: break-word; /* 允许长单词换行 */
+    display: inline-block; /* 让 div 变成行内块元素，适应内容宽度 */
+    align-self: flex-end; /* 让消息靠右对齐 */
+}
+
+/* 响应式调整 */
+@media (max-width: 850px) {
+    .container, .audio-container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .right-panel, .backendRecordingsBox, .recordingsBox {
+        max-width: 100%;
+    }
+}

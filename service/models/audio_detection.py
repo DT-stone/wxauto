@@ -3,6 +3,7 @@ import torch
 import torchaudio
 import time
 import datetime
+import logging
 import io
 import numpy as np
 import soundfile as sf
@@ -136,14 +137,13 @@ class AudioDetectionModule:
 
     async def run(self):
         # 启动定期日志记录协程
+        logger_task = asyncio.create_task(self.periodic_logger())
         logger.info('开始运行 AudioDetectionModule')
+        await self.log(f'开始运行 AudioDetectionModule，初始状态: {self.state.name.lower()}')
         while True:
             try:
-                print('等待音频数据')
                 audio_data = await self.audio_queue.get()
-                print(f"[audio_detection] get audio data{len(audio_data)}")
             except asyncio.TimeoutError:
-                logger.info('没有音频数据，继续循环')
                 # 如果在一段时间内没有音频数据，继续循环
                 continue
 
@@ -210,9 +210,8 @@ class AudioDetectionModule:
 
                         # Call reset_callback before processing
                         try:
-                            # await self.reset_callback()
-                            # fixme
-                            # await self.send_text_queue.put('$clear$')
+                            await self.reset_callback()
+                            await self.send_text_queue.put('$clear$')
                             # await self.reset_callback()
                             logger.info(f"调用 reset_callback 成功")
                         except Exception as e:
@@ -242,6 +241,7 @@ class AudioDetectionModule:
                         self.collected_audio = torch.cat((self.collected_audio, self.buffer.clone()))
                         self.last_speech_time = current_time
                         log_message = "让我想想怎么回答..."
+                        # await self.send_text_queue.put(log_message)
 
                         audio_bytes_io = io.BytesIO()
                         # 转换为正确的形状（需要是 (num_samples, num_channels)）

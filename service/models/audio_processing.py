@@ -42,8 +42,7 @@ class AudioProcessingModule:
                 f'[audio processing] step 2 接收 ASR result 时间 :{datetime.now()},\n- transcribed_text :{transcribed_text}')
             # transcribed_text = await self.asr_result_queue.get()
             if transcribed_text:
-                # resp = BaseResp.gen_resp(MsgType.USER, transcribed_text, uuid.uuid4().hex)
-                # await self.send_text_queue.put(resp)
+                await self.send_text_queue.put(transcribed_text)
                 logger.info(f'[audio processing] step 3 发送文本到 llm 时间 :{datetime.now()}')
                 await self.post_text(transcribed_text)
         except asyncio.CancelledError:

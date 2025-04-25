@@ -132,8 +132,7 @@ class TextProcessingModule:
                         t2 = datetime.now()
                         logger.info(f'[text_processing] step 2 after send to tts：{t2},cost_time:{(t2 - t1).total_seconds()}')
 
-                        # fixme
-                        await self.send_text_queue.put("resp")
+                        await self.send_text_queue.put(before_termination)
                         logger.info(f'成功切割一条数据：{before_termination}')
 
                         # todo 是否需切换? 如果是一个批次的第一次终止，切换终止字符
@@ -158,8 +157,7 @@ class TextProcessingModule:
                         merged_text = self.ban_pattern.sub('', merged_text)
 
                     await self.tts_queue.put(merged_text)
-                    # fixme
-                    await self.send_text_queue.put("resp")
+                    await self.send_text_queue.put(merged_text)
                     logger.info(f'处理剩余数据：{merged_text}')
                     self.current_text = []
 
